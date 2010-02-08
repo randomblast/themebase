@@ -13,5 +13,15 @@ Author URI:
  * @link filetype-mpeg4.php		Adds support for iTunes-style metadata in MPEG4 containers
  */
 
- require_once('filetype-mpeg4.php');
+	require_once('filetype-mpeg4.php');
+	
+	/**
+	 * Theme Working Directory.
+	 *
+	 * Shortcut to get_bloginfo('stylesheet_directory')
+	 */
+	function twd()
+	{
+		return get_bloginfo('stylesheet_directory');
+	}
 ?>
