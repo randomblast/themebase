@@ -1,7 +1,7 @@
 <?
 /*
 Plugin Name: Themebase
-Plugin URI: 
+Plugin URI: http://github.com/randomblast/themebase
 Description: A set of CMS-minded Wordpress extensions to build a theme on top of.
 Author: Josh Channings <randomblast@googlemail.com>
 Version: 0.1
