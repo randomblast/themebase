@@ -14,7 +14,7 @@ Author URI:
  */
 
 	require_once('filetype-mpeg4.php');
-	require_once('sprite.php');
+	require_once('image.php');
 	
 	/**
 	 * Theme Working Directory.

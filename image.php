@@ -1,4 +1,10 @@
 <?
+	// We need this for the wp_image_load call from image_resize in thumb(),
+	// for some reason wp_image_load is only in the admin API, but used in the
+	// normal API.
+	if(!is_admin())
+	@include_once('wp-admin/includes/image.php');
+
 	/**
 	 * Generate a sprite for a set of images and provide a coordinate list for each
 	 *
@@ -113,4 +119,34 @@
 
 		return $op;
 	}
+
+	/**
+	 * Get a thumbnail for an attachment, allowing us to override wp_options.
+	 *
+	 * @param int $id ID of attachment
+	 * @param int $max_w Maximum width (wp_option setting by default)
+	 * @param int $max_h Maximum height (wp_option setting by default)
+	 * @param bool $crop Should we crop rather than scale? (wp_option setting by default)
+	 * @return string URL of thumbnail, or false
+	 */
+	function thumb($id, $max_w = null, $max_h = null, $crop = null)
+	{
+		if($max_w === null) $max_w = get_option('thumbnail_size_w');
+		if($max_h === null) $max_h = get_option('thumbnail_size_h');
+		if($crop === null) $crop = get_option('thumbnail_crop');
+
+		return str_replace(
+			  basename(wp_get_attachment_thumb_url($id))
+			, basename(
+				image_resize(
+					  wp_get_attachment_thumb_file($id)
+					, $max_w
+					, $max_h
+					, $crop
+				)
+			  )
+			, wp_get_attachment_thumb_url($id)
+		);
+	}
+
 ?>
