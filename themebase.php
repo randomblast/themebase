@@ -17,6 +17,8 @@ Author URI:
 	/** Image functions */
 	require_once('image.php');
 	
+	/** PCP: CSS Proprocessor */
+	ob_start(); require_once('pcp.php'); ob_end_clean();
 	/**
 	 * Theme Working Directory.
 	 *
@@ -26,4 +28,7 @@ Author URI:
 	{
 		return get_bloginfo('stylesheet_directory');
 	}
+
+	// Instantiate PCP
+	$pcp = new PCP(twd().'/.build/pcp-cache');
 ?>
