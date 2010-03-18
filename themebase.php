@@ -8,12 +8,13 @@ Version: 0.1
 Author URI: 
 */
 /**
- * Copyright (C) 2010 Josh Channings <randomblast@googlemail.com>
- *
- * @link filetype-mpeg4.php		Adds support for iTunes-style metadata in MPEG4 containers
+ * @copyright 2010 Josh Channings <randomblast@googlemail.com>
+ * @package Themebase
  */
 
+ 	/** Adds support for iTunes-style metadata in MPEG4 containers */
 	require_once('filetype-mpeg4.php');
+	/** Image functions */
 	require_once('image.php');
 	
 	/**
