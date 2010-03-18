@@ -3,18 +3,17 @@
 /**
  * @file pcp.php
  * @package PCP: CSS Preprocessor
- * @version 0.3.1
+ * @version 0.3.2
  * @copyright 2010 Josh Channings <josh+pcp@channings.me.uk>
  * @license LGPLv3
  */
 
 global $pcp;
-if(basename($argv[0]) == basename(__FILE__)) main();
 
 /**
  * CLI entry point
  */
-function main()
+if(basename($argv[0]) == basename(__FILE__))
 {
 	global $pcp, $argc, $argv;
 
