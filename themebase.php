@@ -29,6 +29,33 @@ Author URI:
 		return get_bloginfo('stylesheet_directory');
 	}
 
+
 	// Instantiate PCP
-	$pcp = new PCP(twd().'/.build/pcp-cache');
+	$pcp = new PCP(get_theme_root().'/'.get_template().'/.build/pcp-cache');
+
+	/** Generate CSS diff on post-save action */
+	function tb_generate_css_diff($id)
+	{
+		global $pcp;
+
+		// Prepare diffs dir
+		$basedir = '';
+		extract(wp_upload_dir(), EXTR_IF_EXISTS);
+		if(!is_dir("$basedir/pcp-diffs"))
+			mkdir("$basedir/pcp-diffs");
+
+		$post= get_post($id);
+
+		do_shortcode($post->post_content);
+		file_put_contents("$basedir/pcp-diffs/$id.css", $pcp->css());
+	}
+	add_action('save_post', 'tb_generate_css_diff');
+
+	/** Cleanup CSS diffs on post_delete action */
+	function tb_cleanup_css_diff($id)
+	{
+		extract(wp_upload_dir());
+		unlink("$basedir/pcp-diffs/$id.css");
+	}
+	add_action('delete_post', 'tb_cleanup_css_diff');
 ?>
