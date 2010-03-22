@@ -44,9 +44,11 @@ Author URI:
 		if(!is_dir("$basedir/pcp-diffs"))
 			mkdir("$basedir/pcp-diffs");
 
-		$post= get_post($id);
+		$post = get_post($id);
+
 
 		do_shortcode($post->post_content);
+
 		file_put_contents("$basedir/pcp-diffs/$id.css", $pcp->css());
 	}
 	add_action('save_post', 'tb_generate_css_diff');
