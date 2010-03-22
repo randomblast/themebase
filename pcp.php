@@ -3,7 +3,7 @@
 /**
  * @file pcp.php
  * @package PCP: CSS Preprocessor
- * @version 0.3.3
+ * @version 0.4
  * @copyright 2010 Josh Channings <josh+pcp@channings.me.uk>
  * @license LGPLv3
  */
@@ -82,12 +82,8 @@ EOF;
  */
 class PCP
 {
-	var $state = array(
-		  'sources' => array()
-		, 'variables' => array()
-		// $state['selectors']['div.foo#bar'] = array(PCP_Property, PCP_Property, ...)
-		, 'selectors' => array()
-	);
+	private $sources = array();			/** @var string $sources */
+	public $selectors = array();		/** @var PCP_Selector $selectors */
 
 	private $pseudo_classes = array(
 		// CSS 1
@@ -126,36 +122,35 @@ class PCP
 	function __construct($cache = null)
 	{
 		if(file_exists($cache))
-			$this->state = unserialize(@file_get_contents($cache));
+			$this->selectors = unserialize(@file_get_contents($cache));
 
 		// Hook into global
 		global $pcp;
 		$pcp = &$this;
 	}
 
-	/// @param string|array $source .pcp/.css file to add to the list of files to parse
+	/** @param string|array $source .pcp/.css file to add to the list of files to parse */
 	function add_source($source)
 	{
 		if(is_array($source))
 		{
 			foreach($source as $src)
 				if(file_exists($src))
-					array_push($this->state['sources'], $src);
+					array_push($this->sources, $src);
 		} else
 		{
 			if(file_exists($source))
-				array_push($this->state['sources'], $source);
+				array_push($this->sources, $source);
 		}
 	}
 
-	/// Clear state, parse sources into state
+	/** Clear state, parse sources into state */
 	function parse()
 	{
 		// Clear the state
-		$this->state['variables'] = array();
-		$this->state['selectors'] = array();
+		$this->selectors = array();
 
-		foreach($this->state['sources'] as $src)
+		foreach($this->sources as $src)
 		{
 			if(false !== ($fd = fopen($src, 'r')))
 			{
@@ -181,12 +176,15 @@ class PCP
 								array_push($selector, PCP::clean_token($sels[0]));
 
 							// Instantiate PCP_Selector for new name
-							if(!isset($this->state['selectors'][end($selector)]))
-								$this->state['selectors'][end($selector)] = new PCP_Selector(end($selector));
+							if(!isset($this->selectors[end($selector)]))
+								 new PCP_Selector(
+								 	  end($selector)
+									, count($selector) > 1 ? $selector[count($selector) - 2] : null
+								);
 
 							// Add any comma-delimited selectors as references
 							for($i = 1;$i < count($sels);$i++)
-								$this->state['selectors'][end($selector)]->add_ref($sels[$i]);
+								$this->selectors[end($selector)]->add_ref($sels[$i]);
 							break;
 
 						case '}':	// properties }
@@ -209,6 +207,7 @@ class PCP
 											 ."Assumed '{$p->name}: ".trim($buf).";'"
 											, E_USER_WARNING
 										);
+										// TODO write test case, this isn't actually being handled?
 
 									} else
 									{
@@ -256,7 +255,6 @@ class PCP
 								$p->cn = $cn;
 
 								$buf = '';
-								$this->state['selectors'][end($selector)]->properties[$p->name] = &$p;
 							}
 
 							break;
@@ -287,11 +285,11 @@ class PCP
 								$buf = '';
 
 								// Make sure the referenced selector exists
-								if(!isset($this->state['selectors'][$ref]))
-									$this->state['selectors'][$ref] = new PCP_Selector($ref);
+								if(!isset($this->selectors[$ref]))
+									new PCP_Selector($ref);
 
 								// Add a reference to the current selector
-								$this->state['selectors'][$ref]->add_ref(end($selector));
+								$this->selectors[$ref]->add_ref(end($selector));
 							}
 							break;
 
@@ -324,28 +322,26 @@ class PCP
 	function extend($base, $sub, $delta)
 	{
 		// Check $base selector exists
-		if(!isset($this->state['selectors'][$base]))
+		if(!isset($this->selectors[$base]))
 			return false;
 
-		// Clone $base selector as $sub (PCP_Selector will handle recursion)
-		$this->state['selectors'][$sub] = clone $this->state['selectors'][$base];
-		$this->state['selectors'][$sub]->rename($sub);
+		// Copy tree
+		$this->selectors[$base]->copy($sub);
 
 		// Change properties in new tree
 		foreach($delta as $name => $value)
 		{
-			if(isset($this->state['selectors'][$sub]->properties[$name]))
-				$this->state['selectors'][$sub]->properties[$name]->set($value);
+			if(isset($this->selectors[$sub]->properties[$name]))
+				$this->selectors[$sub]->properties[$name]->set($value);
 			else
-				$this->state['selectors'][$sub]->properties[$name] =
-					new PCP_Property($sub, $name, $value);
+				new PCP_Property($sub, $name, $value);
 		}
 	}
-	/// Return a string representing the state of the engine
+	/** Return a string representing the state of the engine */
 	function cache()
 	{
-		if($this->state)
-			return serialize($this->state);
+		if(count($this->selectors))
+			return serialize($this->selecors);
 	}
 
 	/**
@@ -357,7 +353,7 @@ class PCP
 	{
 		ob_start();
 
-		foreach($this->state['selectors'] as $sel)
+		foreach($this->selectors as $sel)
 		{
 			ob_start();
 
@@ -382,11 +378,11 @@ class PCP
 		return ob_get_clean();
 	}
 
-	/// Write javascript engine
+	/** Write javascript engine */
 	function js()
 	{
 	}
-	/// Validate selectors/property names and prepare for use as a hash
+	/** Validate selectors/property names and prepare for use as a hash */
 	function clean_token($sel)
 	{
 		return preg_replace(
@@ -409,38 +405,49 @@ class PCP
 
 class PCP_Selector
 {
-	private $primary;
-	private $secs = array();
+	private $primary;				/** @var string $primary Name of this selector */
+	private $secs = array();		/** @var array $secs Names of selectors that reference this */
+	public $properties = array();	/** @var PCP_Property $properties */
+	public $parent = null;			/** @var PCP_Selector $parent */
+	public $children = array();		/** @var PCP_Selector $children */
 
-	public $properties = array();
-
-	public function __construct($name)
+	/** Clean name and attach to global state */
+	public function __construct($name, $parent = null)
 	{
+		global $pcp;
+
 		$this->primary = PCP::clean_token($name);
-	}
 
-	/** This is for cloning a selector tree by extend() */
-	public function __clone()
-	{
-		$this->secs = array();
-	}
+		// Attach to global list
+		$pcp->selectors[$this->primary] = &$this;
 
-	/** This needs to be called when we're cloned */
-	public function rename($name)
-	{
-		// Copy & clear properties
-		$ps = $this->properties;
-		$this->properties = array();
-
-		// Clone properties with new selector name
-		foreach($ps as $p)
+		// Attach to parent
+		if(null !== $parent && isset($pcp->selectors[$parent]))
 		{
-			$p->rebase($name, $this->primary);
-			$this->properties[$p->name] = clone $p;
+			$this->parent = $pcp->selectors[$parent];
+			$this->parent->add_child($this);
 		}
+	}
 
-		// Set new name
-		$this->primary = $name;
+	/**
+	 * Copy this selector's whole tree, with a new name
+	 */
+	public function copy($new_name, $old_name = null)
+	{
+		if($old_name === null)
+			$old_name = $this->primary;
+
+		$d = new PCP_Selector(str_replace($old_name, $new_name, $this->primary));
+
+		// Copy properties with new selector name
+		foreach($this->properties as $p)
+			$d->add_property($p->copy($new_name, $old_name));
+
+		// Copy children
+		foreach($this->children as $child)
+			$d->add_child($child->copy($new_name, $old_name));
+
+		return $d;
 	}
 
 	/** Get the primary name of this selector */
@@ -459,6 +466,26 @@ class PCP_Selector
 	 */
 	public function add_ref($sel) {array_push($this->secs, PCP::clean_token($sel));}
 
+	/**
+	 * Validate a selector and add it to the list of children
+	 * @param PCP_Selector $s Reference to the selector to be added
+	 * @returns bool False if the name doesn't match $this->name(), true for success
+	 */
+	public function add_child(&$s)
+	{
+		// Check the name makes sense
+		if($this->name() != substr($s->name(), 0, strlen($this->name())))
+			return false;
+
+		$this->children[$s->name()] = $s;
+
+		return true;
+	}
+	/** */
+	public function add_property(&$p)
+	{
+		$this->properties[$p->name] = $p;
+	}
 }
 class PCP_Property
 {
@@ -470,56 +497,51 @@ class PCP_Property
 	var $cn;				/// int Column number
 	var $selector;			/// string Selector containing this property
 	var $deps;				/// array Properties this depends on. @see PCP_Property
+	var $dep_values;		/// array Precomputed values from the last changed(bool) set
 	var $dependants;		/// array Properties that depend on this. @see PCP_Property
 	var $changed;			/// bool Has set() been called since last value()
 
 	function __construct($selector, $name, $value = null)
 	{
+		global $pcp;
+
 		// TODO Validate these inputs, add error messages
 		$this->deps = array();
 		$this->dependants = array();
 		$this->name = $name;
-		$this->selector = $selector;
+		$this->selector = PCP::clean_token($selector);
 
 		if($value !== null)
 			$this->set($value);
+
+		// Make sure selector exists
+		if(!isset($pcp->selectors[$this->selector]))
+			new PCP_Selector($this->selector);
+
+		// Attach to selector
+		$pcp->selectors[$this->selector]->add_property($this);
 	}
 
-	/** Called by PCP_Selector::rename() */
-	function __clone()
+	/**
+	 * Copy a property with new selector name
+	 * @returns PCP_Property Reference to new property
+	 */
+	function copy($new_selector, $old_selector = null)
 	{
-		$this->deps = null;
+		if($old_selector === null)
+			$old_selector = $this->selector;
+
+		$p = new PCP_Property(
+			  str_replace($old_selector, $new_selector, $this->selector)
+			, $this->name
+			, $this->value
+		);
+
+		// Tell new property it hasn't really changed
+		$p->changed(false);
+
+		return $p;
 	}
-
-	/** Move a property over to a new selector */
-	function rebase($new_selector, $old_selector = null)
-	{
-		// Rename selector
-		if($old_selector !== null)
-			$this->selector = str_replace($old_selector, $new_selector, $this->selector);
-		else
-			$this->selector = $new_selector;
-
-		// Clear precalculated dependencies
-		$deps = null;
-
-		// Clone dependant tree...
-		$ds = $this->dependants;
-		$this->dependants = array();
-		foreach($ds as $d)
-		{
-			// ...recursively
-			$d->rebase($new_selector, $old_selector);
-
-			// Make sure the new selector exists
-			if(!isset($pcp->state['selectors'][$d->selector]))
-				$pcp->state['selectors'][$d->selector] = new PCP_Selector($d->selector);
-
-			// Put dependant back in tree
-			$this->add_dependant($d);
-		}
-	}
-
 	/**
 	 * Compute new value
 	 * @param bool $is_output Decides whether the property will be marked as unchanged
@@ -538,14 +560,14 @@ class PCP_Property
 		// Loop through deps, replace tokens with values
 		foreach($deps as $dep => $p)
 			if($p->value())
-				$this->rvalue = str_replace($dep, $p->value($is_output), $this->rvalue);
+				$this->rvalue = str_replace($dep, $p->value(false), $this->rvalue);
 
 		// Reduce maths ops
 		$this->rvalue = PCP_Property::compute($this->rvalue);
 
 		// Reset changed indicator and return real value
 		if($is_output)
-			$this->changed = false;
+			$this->changed(false);
 		return $this->rvalue;
 	}
 
@@ -601,15 +623,28 @@ private function remove_dependant(&$p)
 	function changed($new_value = null)
 	{
 		if($new_value !== null)
+		{
 			$this->changed = $new_value;
+
+			// Save current values of dependencies
+			if($this->changed === false)
+			{
+				$this->dep_values = array();
+
+				foreach($this->deps() as $name => $dep)
+					$this->dep_values[$name] = $dep->value(false);
+			}
+
+			return $this->changed;
+		}
 
 		// Check for changed $this->value
 		if($this->changed == true)
 			return true;
 
 		// Check for changed dependencies
-		foreach($this->deps() as $dep)
-			if($dep->changed())
+		foreach($this->deps() as $name => $dep)
+			if($dep->value() != $this->dep_values[$name])
 				return true;
 
 		// Nothing changed
@@ -636,7 +671,11 @@ private function remove_dependant(&$p)
 		foreach($matches[0] as $dep)
 		{
 			// Parse tokens into selector->property pairs or just property names
-			preg_match('/([\w-+#>\.]*)\s*->\s*(\$?[\w-]*)\s*|(\$[\w-]*)|(^<*[\w-]*)/', $dep, $splitdep);
+			preg_match(
+				  '/([\w-+#>\.]*)\s*->\s*(\$?[\w-]*)\s*|(\$[\w-]*)|(^<*[\w-]*)/'
+				, $dep
+				, $splitdep
+			);
 
 			if($splitdep[4]) // <property-name form
 			{
@@ -649,7 +688,7 @@ private function remove_dependant(&$p)
 
 				$pname = preg_replace('/^<*/', '', $splitdep[4]);
 
-				$this->deps[$dep] = $pcp->state['selectors'][$scope]->properties[$pname];
+				$this->deps[$dep] = $pcp->selectors[$scope]->properties[$pname];
 
 			} else if($splitdep[3]) // $property-name form
 			{
@@ -659,18 +698,19 @@ private function remove_dependant(&$p)
 				$n = 1;
 				while($n)
 				{
-					if(isset($pcp->state['selectors'][$scope]->properties[$splitdep[3]]))
+					if(isset($pcp->selectors[$scope]->properties[$splitdep[3]]))
 					{
 						$this->deps[$dep] =
-							$pcp->state['selectors'][$scope]->properties[$splitdep[3]];
+							$pcp->selectors[$scope]->properties[$splitdep[3]];
 						$scope = '';
+						$n = 0;
 					} else
 						$scope = preg_replace('/[ >+].*$/', '', $scope, 1, $n);
 				}
-			} else // $(selector->property) form
+			} else // selector->property form
 			{
 				if(!($this->deps[$dep] =
-					$pcp->state['selectors'][$splitdep[1]]->properties[$splitdep[2]]))
+					$pcp->selectors[$splitdep[1]]->properties[$splitdep[2]]))
 				{
 					trigger_error(
 						  "{$this->src}:{$this->ln}:{$this->cn}: "
