@@ -3,7 +3,7 @@
 /**
  * @file pcp.php
  * @package PCP: CSS Preprocessor
- * @version 0.4
+ * @version 0.4.1
  * @copyright 2010 Josh Channings <josh+pcp@channings.me.uk>
  * @license LGPLv3
  */
@@ -341,7 +341,7 @@ class PCP
 	function cache()
 	{
 		if(count($this->selectors))
-			return serialize($this->selecors);
+			return serialize($this->selectors);
 	}
 
 	/**
