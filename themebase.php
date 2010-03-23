@@ -33,6 +33,17 @@ Author URI:
 	// Instantiate PCP
 	$pcp = new PCP(get_theme_root().'/'.get_template().'/.build/pcp-cache');
 
+	/** Get URL of PCP diff */
+	function tb_pcp_diff()
+	{
+		global $post;
+
+		$baseurl = '';
+		extract(wp_upload_dir(), EXTR_IF_EXISTS);
+
+		return "$baseurl/pcp-diffs/{$post->ID}.css";
+	}
+
 	/** Generate CSS diff on post-save action */
 	function tb_generate_css_diff($id)
 	{
