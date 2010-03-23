@@ -62,13 +62,12 @@ Author URI:
 
 		file_put_contents("$basedir/pcp-diffs/$id.css", $pcp->css());
 	}
-	add_action('save_post', 'tb_generate_css_diff');
-
 	/** Cleanup CSS diffs on post_delete action */
 	function tb_cleanup_css_diff($id)
 	{
 		extract(wp_upload_dir());
 		unlink("$basedir/pcp-diffs/$id.css");
 	}
+	add_action('save_post', 'tb_generate_css_diff');
 	add_action('delete_post', 'tb_cleanup_css_diff');
 ?>
