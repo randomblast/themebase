@@ -3,70 +3,73 @@
 /**
  * @file pcp.php
  * @package PCP: CSS Preprocessor
- * @version 0.4.4
+ * @version 0.4.5
  * @copyright 2010 Josh Channings <josh+pcp@channings.me.uk>
  * @license LGPLv3
  */
 
 global $pcp;
 
-/**
- * CLI entry point
- */
-if(basename($argv[0]) == basename(__FILE__))
+if(!function_exists('main'))
 {
-	global $pcp, $argc, $argv;
+	/** CLI Entry Point */
+	function main()
+	{
+		global $pcp, $argc, $argv;
 
-	// Get filenames from options
-	$diff = ($n = array_search('-d', $argv)) ? $argv[$n + 1] : null;
-	$cache = ($n = array_search('-c', $argv)) ? $argv[$n + 1] : null;
-	$output = ($n = array_search('-o', $argv)) ? $argv[$n + 1] : null;
+		// Get filenames from options
+		$diff = ($n = array_search('-d', $argv)) ? $argv[$n + 1] : null;
+		$cache = ($n = array_search('-c', $argv)) ? $argv[$n + 1] : null;
+		$output = ($n = array_search('-o', $argv)) ? $argv[$n + 1] : null;
 
-	// Help/usage message
-	if(
-		   in_array('-h', $argv)
-		|| in_array('--help', $argv)
-		|| $argc == 1
-		|| !$output
-	){
-		echo <<<EOF
-PCP: CSS Preprocessor [Copyright 2010 Josh Channings <josh+pcp@channings.me.uk>]
+		// Help/usage message
+		if(
+			   in_array('-h', $argv)
+			|| in_array('--help', $argv)
+			|| $argc == 1
+			|| !$output
+		){
+			echo <<<EOF
+PCP: CSS Preprocessor
+Copyright 2010 Josh Channings <josh+pcp@channings.me.uk>
 
 Usage: {$argv[0]} [options] file.pcp file.css ...
 Options:
--d	Serialized cache input file (to generate a diff from)
--c	Serialized cache output file
--o	Static CSS output file
+	-d	Serialized cache input file (to generate a diff from)
+	-c	Serialized cache output file
+	-o	Static CSS output file
 
 EOF;
-		exit(0);
-	}
-
-	$pcp = new PCP($diff);
-
-	// Add filenames in args to sources list
-	foreach($argv as $n => $arg)
-	{
-		if(
-			   $n == 0
-			|| $arg == '-o'
-			|| $arg == '-c'
-			|| $arg == '-d'
-		)
-			$opt = true;
-		else
-		{
-			if(!$opt)
-				$pcp->add_source($arg);
-
-			$opt = false;
+			exit(0);
 		}
+
+		$pcp = new PCP($diff);
+
+		// Add filenames in args to sources list
+		foreach($argv as $n => $arg)
+		{
+			if(
+				   $n == 0
+				|| $arg == '-o'
+				|| $arg == '-c'
+				|| $arg == '-d'
+			)
+				$opt = true;
+			else
+			{
+				if(!$opt)
+					$pcp->add_source($arg);
+
+				$opt = false;
+			}
+		}
+
+		$pcp->parse();
+
+		if($output) file_put_contents($output, $pcp->css(true));
+		if($cache)  file_put_contents($cache, $pcp->cache());
 	}
-
-	$pcp->parse();
-
-	if($output) file_put_contents($output, $pcp->css(true));
-	if($cache)  file_put_contents($cache, $pcp->cache());
+	if(isset($argv) && basename($argv[0]) == basename(__FILE__)) main();
 }
 
 /**
@@ -84,37 +87,6 @@ class PCP
 {
 	private $sources = array();			/** @var string $sources */
 	public $selectors = array();		/** @var PCP_Selector $selectors */
-
-	private $pseudo_classes = array(
-		// CSS 1
-		  'active'
-		, 'hover'
-		, 'link'
-		, 'visited'
-
-		// CSS 2
-		, 'first-child'
-		, 'focus'
-		, 'lang'
-
-		// CSS 3
-		, 'nth-child'
-		, 'nth-last-child'
-		, 'nth-of-type'
-		, 'nth-last-of-type'
-		, 'last-child'
-		, 'first-of-type'
-		, 'last-of-type'
-		, 'only-child'
-		, 'only-of-type'
-		, 'root'
-		, 'empty'
-		, 'target'
-		, 'enabled'
-		, 'disabled'
-		, 'checked'
-		, 'not'
-	);
 
 	/**
 	 * @param string $cache Filename of engine cache
@@ -197,7 +169,7 @@ class PCP
 							} else
 							{
 								// Check for open property
-								if($p)
+								if(isset($p))
 								{
 									// Check for potential value in the buffer
 									if(strlen(trim($buf)))
@@ -226,20 +198,19 @@ class PCP
 						case ':':	// property name : property value
 
 							// Is there already an open property?
-							if($p)
-								$buf .= ':';
-							else
+							if(isset($p))
 							{
-								// Look ahead for pseudo-class names
-								// We need to do this to differentiate between nested selectors
-								// and properties.
-								// TODO Maybe redo this to just see which comes first of (;|{)?
-								$la = fread($fd, 24);
-								fseek($fd, -(strlen($la)), SEEK_CUR);
-								$la = preg_replace('/\W.*/', '', $la);
+								$buf .= ':';
+								$cn++;
+							} else
+							{
+								$n = 1;
+								while(false !== ($la = fgetc($fd)) && $la != ';' && $la != '{')
+									$n++;
 
-								// If next word is a valid pseudo-class, pass ':' through to $buf
-								if(in_array($la, $this->pseudo_classes))
+								fseek($fd, -$n, SEEK_CUR);
+
+								if($la == '{')
 								{
 									$buf .= ':';
 									break;
@@ -261,7 +232,7 @@ class PCP
 
 						case ';':	// property value ; || reference name ;
 
-							if($p)
+							if(isset($p))
 							{
 								$p->set(trim($buf));
 								$buf = '';
