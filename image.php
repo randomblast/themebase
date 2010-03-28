@@ -25,7 +25,8 @@
 			, 'type'	=> 'jpeg'
 			, 'path'	=> $store['basedir']
 			, 'url'		=> $store['baseurl']
-			, 'css'		=> array()
+			, 'css'		=> array()					// Formatted CSS for each image
+			, 'pcp'		=> array()					// name => value pairs for each image
 		);
 		
 		// Add valid images to $src array
@@ -74,6 +75,15 @@
 				."width: {$op['w']}px;"
 				."height: {$op['h']}px;"
 				."display: block;";
+
+			$op['pcp'][$id] = array
+			(
+				  'background-image' => "url({$op['url']})"
+				, 'background-position' => "{$x}px 0"
+				, 'width' => "{$op['w']}px"
+				, 'height' => "{$op['h']}px"
+				, 'display' => 'block'
+			);
 		}
 
 		// If we've done this before, stop now while we haven't done anything too heavy yet
